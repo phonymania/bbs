@@ -1,0 +1,223 @@
+:root {
+  --bg: #f4f5f7;
+  --card: #ffffff;
+  --border: #dcdfe4;
+  --text: #23272f;
+  --muted: #6b7280;
+  --accent: #2563eb;
+  --danger: #dc2626;
+  --ok: #16a34a;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
+  line-height: 1.7;
+}
+
+header.site-header {
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  padding: 20px;
+}
+
+header.site-header h1 {
+  margin: 0;
+  font-size: 22px;
+}
+
+main {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px 20px;
+  margin-bottom: 20px;
+}
+
+.notice {
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+.notice.ok { background: #ecfdf5; color: var(--ok); border: 1px solid #a7f3d0; }
+.notice.error { background: #fef2f2; color: var(--danger); border: 1px solid #fecaca; }
+
+form .field {
+  margin-bottom: 12px;
+}
+
+label {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+input[type=text],
+input[type=password],
+textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  background: #fff;
+  color: var(--text);
+}
+
+textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+button, input[type=submit] {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 9px 18px;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+}
+button:hover, input[type=submit]:hover { opacity: 0.9; }
+
+button.danger { background: var(--danger); }
+
+.post {
+  border-bottom: 1px solid var(--border);
+  padding: 14px 0;
+}
+.post:last-child { border-bottom: none; }
+
+.post-meta {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.post-meta .name { color: var(--text); font-weight: bold; }
+.post-meta .res-number {
+  display: inline-block;
+  min-width: 28px;
+  color: var(--muted);
+  font-weight: bold;
+}
+.post-meta .mail { color: var(--accent); font-size: 12px; }
+
+.post.op {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+}
+
+.row2 {
+  display: flex;
+  gap: 12px;
+}
+.row2 .field { flex: 1; }
+
+.thread-list {
+  margin: 0;
+  padding-left: 24px;
+}
+.thread-list-item {
+  margin-bottom: 14px;
+}
+.thread-list-item .thread-title {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: bold;
+  font-size: 15px;
+}
+.thread-list-item .thread-title:hover { text-decoration: underline; }
+.thread-list-item .thread-meta {
+  color: var(--muted);
+  font-size: 13px;
+  margin-left: 4px;
+}
+.thread-list-item .thread-excerpt {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 2px;
+}
+
+.post-body {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-size: 15px;
+  margin-bottom: 8px;
+}
+
+details.delete-box {
+  font-size: 13px;
+}
+details.delete-box summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+details.delete-box .field {
+  margin-top: 8px;
+}
+
+.pagination {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 20px;
+  font-size: 14px;
+}
+.pagination a, .pagination span {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  text-decoration: none;
+  color: var(--text);
+  background: #fff;
+}
+.pagination .current {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+footer {
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+  padding: 20px;
+}
+
+/*
+ * ハニーポット欄: 人間の目には見えないが、機械的にフォームへ
+ * 自動入力するボットには通常のテキスト欄として見える。
+ * display:none だと一部のスパムボットが検知して回避するため、
+ * 画面外へ配置する方式にしている。
+ */
+.anchor-link {
+  color: var(--accent);
+  text-decoration: none;
+}
+.anchor-link:hover { text-decoration: underline; }
+
+.hp-field {
+  position: absolute;
+  left: -9999px;
+  top: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
