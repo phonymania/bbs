@@ -8,6 +8,7 @@ bbs_start_session();
 bbs_require_post_method();
 
 $pdo = bbs_get_pdo();
+bbs_require_view_unlocked($pdo);
 
 $type = ($_POST['type'] ?? '') === 'thread' ? 'thread' : (($_POST['type'] ?? '') === 'reply' ? 'reply' : null);
 $id = filter_input(INPUT_POST, 'id', FILTER_VALIDATE_INT);

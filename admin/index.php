@@ -52,6 +52,7 @@ $deleted = isset($_GET['deleted']);
 
   <p>
     <a href="../index.php">&laquo; 掲示板に戻る</a> ・
+    <a href="settings.php">閲覧・投稿パスワード設定</a> ・
     <a href="logout.php">ログアウト</a>
   </p>
 

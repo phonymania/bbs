@@ -92,6 +92,50 @@ function bbs_init_schema(PDO $pdo): void
         )
     ');
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_admin_attempts_ip_time ON admin_login_attempts (ip_hash, created_at)');
+
+    // サイト設定(閲覧パスワード・投稿パスワードのON/OFFとハッシュ値など)
+    // 管理画面から自由にON/OFF・変更できるよう、ファイルではなくDBに保持する
+    $pdo->exec('
+        CREATE TABLE IF NOT EXISTS settings (
+            key    TEXT PRIMARY KEY,
+            value  TEXT NOT NULL
+        )
+    ');
+    $defaults = [
+        'view_password_enabled' => '0',
+        'view_password_hash'    => '',
+        'post_password_enabled' => '0',
+        'post_password_hash'    => '',
+    ];
+    foreach ($defaults as $key => $value) {
+        $stmt = $pdo->prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (:k, :v)');
+        $stmt->execute([':k' => $key, ':v' => $value]);
+    }
+}
+
+/** 設定値を取得する。存在しなければ $default を返す。 */
+function bbs_get_setting(PDO $pdo, string $key, string $default = ''): string
+{
+    $stmt = $pdo->prepare('SELECT value FROM settings WHERE key = :k');
+    $stmt->execute([':k' => $key]);
+    $value = $stmt->fetchColumn();
+    return $value === false ? $default : (string)$value;
+}
+
+/** 設定値を "1"/"0" として真偽値で取得する。 */
+function bbs_get_setting_bool(PDO $pdo, string $key): bool
+{
+    return bbs_get_setting($pdo, $key, '0') === '1';
+}
+
+/** 設定値を保存する(UPSERT)。 */
+function bbs_set_setting(PDO $pdo, string $key, string $value): void
+{
+    $stmt = $pdo->prepare(
+        'INSERT INTO settings (key, value) VALUES (:k, :v)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value'
+    );
+    $stmt->execute([':k' => $key, ':v' => $value]);
 }
 
 /**

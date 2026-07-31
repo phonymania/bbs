@@ -6,6 +6,7 @@ require_once __DIR__ . '/lib.php';
 bbs_send_security_headers();
 bbs_start_session();
 $pdo = bbs_get_pdo();
+bbs_require_view_unlocked($pdo);
 
 $threadId = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
 if ($threadId === null || $threadId === false) {
@@ -62,6 +63,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
         $password = bbs_clean_text((string)($_POST['password'] ?? ''), BBS_PASSWORD_MAX);
         if ($password === null) {
             $errors[] = '削除用パスワードが長すぎます。';
+        }
+
+        if (!bbs_try_unlock_post($pdo, (string)($_POST['site_post_password'] ?? ''))) {
+            $errors[] = '投稿用パスワードが正しくありません。';
         }
     }
 
@@ -165,6 +170,7 @@ $showOp = ($rangeStart <= 1);
 $csrfToken = bbs_csrf_token();
 $formToken = bbs_form_timing_token();
 $isFull = $resCount >= BBS_MAX_RES;
+$needsPostPassword = !bbs_is_post_unlocked($pdo);
 ?>
 <!DOCTYPE html>
 <html lang="ja">
@@ -270,6 +276,13 @@ $isFull = $resCount >= BBS_MAX_RES;
         <label for="password">削除用パスワード(任意)</label>
         <input type="password" id="password" name="password" maxlength="<?= BBS_PASSWORD_MAX ?>" autocomplete="new-password">
       </div>
+
+      <?php if ($needsPostPassword): ?>
+      <div class="field">
+        <label for="site_post_password">投稿用パスワード(必須・管理人から共有されたパスワードを入力)</label>
+        <input type="password" id="site_post_password" name="site_post_password" maxlength="<?= BBS_PASSWORD_MAX ?>" autocomplete="off" required>
+      </div>
+      <?php endif; ?>
 
       <button type="submit">レスする</button>
     </form>

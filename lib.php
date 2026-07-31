@@ -297,6 +297,97 @@ function bbs_render_delete_form(string $type, int $id, string $csrfToken, ?int $
 }
 
 /* ============================================================
+ * 閲覧パスワード / 投稿パスワード (管理人がON/OFFを自由に切替可能)
+ * ------------------------------------------------------------
+ * - 有効になっている場合、パスワードのハッシュ値をセッションに
+ *   保持している人だけが通過できる。
+ * - 「セッションにハッシュ値そのものを保持し、現在の設定ハッシュと
+ *   一致するかを毎回確認する」方式のため、管理人がパスワードを
+ *   変更した瞬間に、既存のセッションは自動的に再ロックされる。
+ * - 管理者(is_admin)は常に両方とも素通りできる。
+ * ============================================================ */
+function bbs_is_view_unlocked(PDO $pdo): bool
+{
+    if (!empty($_SESSION['is_admin'])) {
+        return true;
+    }
+    if (!bbs_get_setting_bool($pdo, 'view_password_enabled')) {
+        return true;
+    }
+    $currentHash = bbs_get_setting($pdo, 'view_password_hash', '');
+    if ($currentHash === '') {
+        // 有効化されているのにパスワード未設定 = 安全側に倒して誰も通さない
+        return false;
+    }
+    return isset($_SESSION['view_unlocked_hash']) && hash_equals($currentHash, $_SESSION['view_unlocked_hash']);
+}
+
+/** 閲覧ロックがかかっていれば gate.php へリダイレクトする。呼び出し側の処理は続行しない。 */
+function bbs_require_view_unlocked(PDO $pdo): void
+{
+    if (bbs_is_view_unlocked($pdo)) {
+        return;
+    }
+    $target = $_SERVER['REQUEST_URI'] ?? 'index.php';
+    header('Location: gate.php?redirect=' . urlencode($target));
+    exit;
+}
+
+function bbs_is_post_unlocked(PDO $pdo): bool
+{
+    if (!empty($_SESSION['is_admin'])) {
+        return true;
+    }
+    if (!bbs_get_setting_bool($pdo, 'post_password_enabled')) {
+        return true;
+    }
+    $currentHash = bbs_get_setting($pdo, 'post_password_hash', '');
+    if ($currentHash === '') {
+        return false;
+    }
+    return isset($_SESSION['post_unlocked_hash']) && hash_equals($currentHash, $_SESSION['post_unlocked_hash']);
+}
+
+/**
+ * 投稿用パスワードを検証し、正しければセッションに記録して true を返す。
+ * (有効化されていない場合は常に true)
+ */
+function bbs_try_unlock_post(PDO $pdo, string $input): bool
+{
+    if (bbs_is_post_unlocked($pdo)) {
+        return true;
+    }
+    $currentHash = bbs_get_setting($pdo, 'post_password_hash', '');
+    if ($currentHash === '' || $input === '') {
+        return false;
+    }
+    if (password_verify($input, $currentHash)) {
+        $_SESSION['post_unlocked_hash'] = $currentHash;
+        return true;
+    }
+    return false;
+}
+
+/**
+ * gate.php のリダイレクト先パラメータを検証する(オープンリダイレクト対策)。
+ * "index.php" または "thread.php?id=数字" の形しか許可しない。
+ */
+function bbs_sanitize_redirect_target(?string $target): string
+{
+    if ($target === null) {
+        return 'index.php';
+    }
+    $target = ltrim($target, '/');
+    if (preg_match('/^index\.php$/', $target)) {
+        return 'index.php';
+    }
+    if (preg_match('/^thread\.php\?id=([0-9]+)$/', $target, $m)) {
+        return 'thread.php?id=' . $m[1];
+    }
+    return 'index.php';
+}
+
+/* ============================================================
  * 投稿頻度制限 (連投・スパム対策)
  * ============================================================ */
 function bbs_check_rate_limit(PDO $pdo, string $ipHash): array
