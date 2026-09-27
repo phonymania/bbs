@@ -463,3 +463,159 @@ function bbs_require_post_method(): void
         exit;
     }
 }
+
+/* ============================================================
+ * ChMate等、2ch互換プロトコルで読み書きする専用ブラウザへの対応
+ * ------------------------------------------------------------
+ * subject.txt / dat ファイルはいずれも「1行 = 1レス」という形式で、
+ * 明示的なレス番号フィールドを持たない(ファイル内の行の位置がそのまま
+ * レス番号として扱われる)。そのため、
+ *   1. タイトル・名前・メール等、1行で扱うべき項目に改行が混入しないこと
+ *   2. フィールド区切り文字 "<>" が本文中に登場して構造が壊れないこと
+ *   3. レス削除時に行を消してしまうと後続レスの行位置(=レス番号)が
+ *      ズレてしまうため、削除は「行を残したまま内容だけ置き換える」
+ *      論理削除にすること
+ * が重要になる。
+ * ============================================================ */
+
+/** タイトルや名前など、1行で扱いたいテキスト中の改行を空白に変換する。 */
+function bbs_flatten_newlines(string $s): string
+{
+    return str_replace(["\r\n", "\r", "\n"], ' ', $s);
+}
+
+/**
+ * dat/subject.txt形式の区切り文字 "<>" が本文中に紛れて構造を壊さないよう、
+ * 半角の "<" ">" を全角に変換する(本家2chが実際に行っているのと同じ対策)。
+ * この変換はChMate向けのエクスポート時にのみ適用し、DBに保存する内容や
+ * 通常のWebブラウザ向けHTML表示(htmlspecialchars側で別途エスケープ)には
+ * 一切影響しない。
+ */
+function bbs_to_2ch_safe(string $s): string
+{
+    return str_replace(['<', '>'], ["\u{FF1C}", "\u{FF1E}"], $s);
+}
+
+/**
+ * HTTP Basic認証のパスワードを取得する。
+ * PHP_AUTH_PW が使えない実行環境(PHP-FPM等)向けに、
+ * Authorization ヘッダーからのフォールバック取得にも対応する。
+ */
+function bbs_get_basic_auth_password(): ?string
+{
+    if (isset($_SERVER['PHP_AUTH_PW'])) {
+        return (string)$_SERVER['PHP_AUTH_PW'];
+    }
+    $header = $_SERVER['HTTP_AUTHORIZATION'] ?? ($_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? null);
+    if ($header !== null && stripos($header, 'Basic ') === 0) {
+        $decoded = base64_decode(substr($header, 6), true);
+        if ($decoded !== false && strpos($decoded, ':') !== false) {
+            [, $pass] = explode(':', $decoded, 2);
+            return $pass;
+        }
+    }
+    return null;
+}
+
+/**
+ * ChMate等の専用ブラウザ向けエンドポイント用のBasic認証チェック。
+ * 閲覧パスワード/投稿パスワードが有効な場合のみ要求する。
+ *
+ * 専用ブラウザは通常、板ごとに1組のID/PASSしか保持できないため、
+ * 投稿エンドポイント(bbs.cgi)では「投稿用パスワード」「閲覧用パスワード」の
+ * どちらか一方が一致すれば通す(管理人がどちらを専用ブラウザに設定しても
+ * 投稿できるようにするための実用上の措置。両方を別の値で有効にしている場合は、
+ * 専用ブラウザ側には同じ値を使うか、投稿用パスワードの方を設定することを推奨)。
+ * 一致しなければ 401 を返して終了する(呼び出し元の処理は続行しない)。
+ */
+function bbs_chmate_require_auth(PDO $pdo, string $realm, bool $checkView, bool $checkPost): void
+{
+    $viewEnabled = $checkView && bbs_get_setting_bool($pdo, 'view_password_enabled');
+    $postEnabled = $checkPost && bbs_get_setting_bool($pdo, 'post_password_enabled');
+
+    if (!$viewEnabled && !$postEnabled) {
+        return;
+    }
+
+    $ipHash = bbs_ip_hash(bbs_client_ip());
+    $lockKey = 'chmateauth:' . $ipHash;
+
+    if (bbs_admin_is_locked($pdo, $lockKey)) {
+        header('WWW-Authenticate: Basic realm="' . $realm . '"');
+        http_response_code(401);
+        header('Content-Type: text/plain; charset=UTF-8');
+        echo 'Too many attempts. Please try again later.';
+        exit;
+    }
+
+    $pass = bbs_get_basic_auth_password();
+    $ok = false;
+
+    if ($pass !== null && $pass !== '') {
+        if ($postEnabled) {
+            $hash = bbs_get_setting($pdo, 'post_password_hash', '');
+            if ($hash !== '' && password_verify($pass, $hash)) {
+                $ok = true;
+            }
+        }
+        if (!$ok && $viewEnabled) {
+            $hash = bbs_get_setting($pdo, 'view_password_hash', '');
+            if ($hash !== '' && password_verify($pass, $hash)) {
+                $ok = true;
+            }
+        }
+    }
+
+    bbs_admin_record_attempt($pdo, $lockKey, $ok);
+
+    if (!$ok) {
+        header('WWW-Authenticate: Basic realm="' . $realm . '"');
+        http_response_code(401);
+        header('Content-Type: text/plain; charset=UTF-8');
+        echo 'Authentication required.';
+        exit;
+    }
+}
+
+/**
+ * 2ch互換dat形式の日付欄 "YYYY/MM/DD(曜) HH:MM:SS ID:XXXXXXXX" を組み立てる。
+ * IDは「同じ投稿者(IPハッシュ)・同じ日・同じスレッド」であれば同じ値になる
+ * 簡易的な識別子で、本家2chのIDと同様、生IPを直接見せることなく
+ * 「同一人物らしさ」の目安を提供するための演出的な機能。
+ */
+function bbs_format_2ch_date(int $timestamp, string $ipHash, int $threadId): string
+{
+    $week = ['日', '月', '火', '水', '木', '金', '土'];
+    $w = $week[(int)date('w', $timestamp)];
+    $datePart = date('Y/m/d', $timestamp) . '(' . $w . ') ' . date('H:i:s', $timestamp);
+
+    $idSource = hash_hmac('sha256', $ipHash . '|' . date('Ymd', $timestamp) . '|' . $threadId, BBS_SECRET_KEY);
+    $id = substr(str_replace(['+', '/'], ['A', 'B'], base64_encode(hex2bin(substr($idSource, 0, 32)))), 0, 8);
+
+    return $datePart . ' ID:' . $id;
+}
+
+/**
+ * dat形式の1行を組み立てる。
+ * $title は1行目(スレッドの最初の投稿=OP)のときだけ渡し、それ以外は空文字を渡す。
+ */
+function bbs_build_dat_line(
+    string $name,
+    string $mail,
+    string $comment,
+    int $createdAt,
+    string $ipHash,
+    int $threadId,
+    string $title
+): string {
+    $safeName = bbs_to_2ch_safe(bbs_flatten_newlines($name));
+    $safeMail = bbs_to_2ch_safe(bbs_flatten_newlines($mail));
+    $safeTitle = bbs_to_2ch_safe(bbs_flatten_newlines($title));
+
+    $dateId = bbs_format_2ch_date($createdAt, $ipHash, $threadId);
+
+    $body = bbs_to_2ch_safe($comment);
+    $body = str_replace(["\r\n", "\r", "\n"], '<br>', $body);
+
+    return $safeName . '<>' . $safeMail . '<>' . $dateId . '<>' . $body . '<>' . $safeTitle;
+}

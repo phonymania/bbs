@@ -77,8 +77,17 @@ if ($ok) {
         $del->execute([':id' => $id]);
         header('Location: index.php?deleted=1');
     } else {
-        $del = $pdo->prepare('DELETE FROM replies WHERE id = :id');
-        $del->execute([':id' => $id]);
+        // 物理削除ではなく論理削除にする(ChMate等の専用ブラウザはdatファイル内の
+        // 行の位置をそのままレス番号として扱うため、行ごと消すと以降のレス番号が
+        // ズレてしまう。内容だけプレースホルダに置き換えて行自体は残す)
+        $del = $pdo->prepare(
+            "UPDATE replies SET deleted = 1, name = :name, mail = '', comment = :comment WHERE id = :id"
+        );
+        $del->execute([
+            ':id'      => $id,
+            ':name'    => '(削除済み)',
+            ':comment' => '書き込みをした人により削除されました。',
+        ]);
         header('Location: ' . bbs_delete_back_url('reply', $redirectThreadId, 'deleted=1'));
     }
     exit;

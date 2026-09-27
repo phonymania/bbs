@@ -36,6 +36,20 @@ function bbs_get_pdo(): PDO
     return $pdo;
 }
 
+/**
+ * 指定テーブルに指定カラムが存在しなければ追加する(簡易マイグレーション)。
+ * $table, $column, $definition は常にこのファイル内の固定文字列のみを渡す前提
+ * (外部入力を渡さない。SQLiteはプレースホルダでテーブル名/カラム名を指定できないため)。
+ */
+function bbs_ensure_column(PDO $pdo, string $table, string $column, string $definition): void
+{
+    $stmt = $pdo->query('PRAGMA table_info(' . $table . ')');
+    $columns = $stmt->fetchAll(PDO::FETCH_COLUMN, 1);
+    if (!in_array($column, $columns, true)) {
+        $pdo->exec('ALTER TABLE ' . $table . ' ADD COLUMN ' . $column . ' ' . $definition);
+    }
+}
+
 function bbs_init_schema(PDO $pdo): void
 {
     // スレッド(1つの話題)。最初の投稿(レス1)の内容もここに保持する
@@ -71,6 +85,12 @@ function bbs_init_schema(PDO $pdo): void
         )
     ');
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_replies_thread ON replies (thread_id, res_number)');
+
+    // 既存DB向けマイグレーション: レスの論理削除フラグ(ChMate等はdatファイルの
+    // 「行の位置」をそのままレス番号として扱うため、削除時に行ごと消してしまうと
+    // 以降のレス番号がズレてしまう。そのため物理削除ではなく論理削除にし、
+    // 削除済みの行は本文をプレースホルダに置き換えた上でその位置に残す)
+    bbs_ensure_column($pdo, 'replies', 'deleted', "INTEGER NOT NULL DEFAULT 0");
 
     // 連投・投稿頻度制限のための記録(生IPは保存せずハッシュ化して保持)
     $pdo->exec('

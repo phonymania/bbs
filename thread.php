@@ -158,7 +158,7 @@ $repliesLo = max(2, $rangeStart);
 $replies = [];
 if ($repliesLo <= $rangeEnd) {
     $stmt = $pdo->prepare(
-        'SELECT id, res_number, name, mail, comment, created_at FROM replies
+        'SELECT id, res_number, name, mail, comment, created_at, deleted FROM replies
          WHERE thread_id = :tid AND res_number BETWEEN :lo AND :hi ORDER BY res_number ASC'
     );
     $stmt->execute([':tid' => $threadId, ':lo' => $repliesLo, ':hi' => $rangeEnd]);
@@ -223,7 +223,9 @@ $needsPostPassword = !bbs_is_post_unlocked($pdo);
           ・<?= h(date('Y-m-d H:i:s', (int)$r['created_at'])) ?>
         </div>
         <div class="post-body"><?= bbs_nl2br_safe(bbs_linkify_anchors(h($r['comment']))) ?></div>
-        <?= bbs_render_delete_form('reply', (int)$r['id'], $csrfToken, $threadId) ?>
+        <?php if (!$r['deleted']): ?>
+          <?= bbs_render_delete_form('reply', (int)$r['id'], $csrfToken, $threadId) ?>
+        <?php endif; ?>
       </div>
     <?php endforeach; ?>
 

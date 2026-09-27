@@ -51,3 +51,10 @@ define('BBS_ADMIN_PASSWORD_HASH', '$2y$10$WaOMe5V2KyuG3NDqXAfOseG2h87I5LmgpC9d.U
 
 // --- Cookie / Session 名 ----------------------------------------------
 define('BBS_SESSION_NAME', 'BBSSESSID');
+
+// --- ChMate等の2ch互換(専用ブラウザ)対応 -------------------------------
+// 専用ブラウザからは http://ホスト/{BBS_BOARD_ID}/subject.txt のようなURLで
+// アクセスされる。板が1つしかない前提のシンプルな実装のため、通常は
+// この値を変更する必要はない(変更する場合は router.php や .htaccess の
+// ルーティング設定と一致していることを確認すること)。
+define('BBS_BOARD_ID', 'bbs');
