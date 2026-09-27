@@ -29,7 +29,7 @@ if ($thread === false) {
 }
 
 $stmt = $pdo->prepare(
-    'SELECT id, res_number, name, mail, comment, created_at FROM replies WHERE thread_id = :tid ORDER BY res_number ASC'
+    'SELECT id, res_number, name, mail, comment, created_at, deleted FROM replies WHERE thread_id = :tid ORDER BY res_number ASC'
 );
 $stmt->execute([':tid' => $threadId]);
 $replies = $stmt->fetchAll();
@@ -84,13 +84,25 @@ $deleted = isset($_GET['deleted']);
           ・<?= h(date('Y-m-d H:i:s', (int)$r['created_at'])) ?>
         </div>
         <div class="post-body"><?= bbs_nl2br_safe(h($r['comment'])) ?></div>
-        <form method="post" action="delete.php">
-          <input type="hidden" name="csrf_token" value="<?= h($csrfToken) ?>">
-          <input type="hidden" name="type" value="reply">
-          <input type="hidden" name="id" value="<?= (int)$r['id'] ?>">
-          <input type="hidden" name="redirect_thread_id" value="<?= (int)$threadId ?>">
-          <button type="submit" class="danger">このレスを削除</button>
-        </form>
+        <?php if ($r['deleted']): ?>
+          <p><em>(このレスは削除済みです。プレースホルダとして行は残っています)</em></p>
+          <form method="post" action="delete.php">
+            <input type="hidden" name="csrf_token" value="<?= h($csrfToken) ?>">
+            <input type="hidden" name="type" value="reply">
+            <input type="hidden" name="id" value="<?= (int)$r['id'] ?>">
+            <input type="hidden" name="redirect_thread_id" value="<?= (int)$threadId ?>">
+            <input type="hidden" name="purge" value="1">
+            <button type="submit" class="danger">完全に削除する(行ごと削除・レス番号がズレます)</button>
+          </form>
+        <?php else: ?>
+          <form method="post" action="delete.php">
+            <input type="hidden" name="csrf_token" value="<?= h($csrfToken) ?>">
+            <input type="hidden" name="type" value="reply">
+            <input type="hidden" name="id" value="<?= (int)$r['id'] ?>">
+            <input type="hidden" name="redirect_thread_id" value="<?= (int)$threadId ?>">
+            <button type="submit" class="danger">このレスを削除</button>
+          </form>
+        <?php endif; ?>
       </div>
     <?php endforeach; ?>
   </section>

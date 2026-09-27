@@ -39,8 +39,24 @@ if ($type === 'thread') {
 }
 
 // reply
-$stmt = $pdo->prepare('DELETE FROM replies WHERE id = :id');
-$stmt->execute([':id' => $id]);
+$purge = ($_POST['purge'] ?? '') === '1';
+
+if ($purge) {
+    // 完全に削除(物理削除)。違法コンテンツ等でどうしても内容を残したくない場合用。
+    // ChMate等の専用ブラウザから見た場合、以降のレス番号(行位置)がズレる点に注意。
+    $stmt = $pdo->prepare('DELETE FROM replies WHERE id = :id');
+    $stmt->execute([':id' => $id]);
+} else {
+    // 通常は論理削除(行の位置=レス番号を維持したまま内容だけ置き換える)
+    $stmt = $pdo->prepare(
+        "UPDATE replies SET deleted = 1, name = :name, mail = '', comment = :comment WHERE id = :id"
+    );
+    $stmt->execute([
+        ':id'      => $id,
+        ':name'    => '(削除済み)',
+        ':comment' => '管理者により削除されました。',
+    ]);
+}
 
 if ($redirectThreadId !== null && $redirectThreadId !== false) {
     header('Location: thread.php?id=' . (int)$redirectThreadId . '&deleted=1');
